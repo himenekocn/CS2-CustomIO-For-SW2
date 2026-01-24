@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using SwiftlyS2.Shared;
+using SwiftlyS2.Shared.Convars;
 using SwiftlyS2.Shared.Events;
 using SwiftlyS2.Shared.Memory;
 using SwiftlyS2.Shared.Natives;
@@ -9,7 +10,7 @@ using SwiftlyS2.Shared.SchemaDefinitions;
 
 namespace CustomIO;
 
-[PluginMetadata(Id = "CS2 CustomIO For SW2", Version = "1.0", Name = "CustomIO SW2", Author = "DarkerZ [RUS] & LynchMus", Description = "Fixes missing keyvalues from CSS/CS:GO", Website = "https://github.com/himenekocn/CS2-CustomIO-For-SW2")]
+[PluginMetadata(Id = "CS2 CustomIO For SW2", Version = "1.0", Name = "CustomIO SW2", Author = "DarkerZ & LynchMus", Description = "Fixes missing keyvalues from CSS/CS:GO", Website = "https://github.com/himenekocn/CS2-CustomIO-For-SW2")]
 public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
 {
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -20,8 +21,12 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
     private delegate void CBaseEntity_SetGravityScale_Delegate(nint a1, float a2);
     private static IUnmanagedFunction<CBaseEntity_SetGravityScale_Delegate>? CBaseEntity_SetGravityScale_Func;
 
+    private IConVar<bool>? sw_iodebug;
+
     public override void Load(bool hotReload)
     {
+        sw_iodebug = Core.ConVar.CreateOrFind("sw_iodebug", "Enable IO Debug", false);
+
         CEntityIdentity_SetEntityName_Func = Core.Memory.GetUnmanagedFunctionByAddress<CEntityIdentity_SetEntityName_Delegate>(Core.GameData.GetSignature("CEntityInstance::SetEntityName"));
         CBaseEntity_SetGravityScale_Func = Core.Memory.GetUnmanagedFunctionByAddress<CBaseEntity_SetGravityScale_Delegate>(Core.GameData.GetSignature("CBaseEntity::SetGravityScale"));
 
@@ -41,13 +46,15 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
             return;
         }
 
-        if (@event.Identity is not CBaseEntity entity || !entity.IsValid)
+        var cei = @event.Identity.EntityInstance;
+
+        if (cei == null || !cei.IsValid)
         {
             return;
         }
 
         var activator = @event.Activator;
-        var value = @event.VariantValue.ToString();
+        var value = TryToString(@event.VariantValue);
 
         try
         {
@@ -55,6 +62,8 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
             {
                 if (!string.IsNullOrEmpty(value))
                 {
+                    if(sw_iodebug?.Value == true)
+                        Core.Logger.LogInformation($"[CustomIO]: {input} {value}");
                     string[] keyvalue = value.Split([' ']);
                     if (keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[0]))
                     {
@@ -64,7 +73,7 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                 {
                                     if (keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]))
                                     {
-                                        CEntityIdentity_SetEntityName_Func?.Call(entity.Address, keyvalue[1]);
+                                        CEntityIdentity_SetEntityName_Func?.Call(cei.Address, keyvalue[1]);
                                     }
                                 }
                                 break;
@@ -77,7 +86,7 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                             x = Math.Clamp(x, -16384.0f, 16384.0f);
                                             y = Math.Clamp(y, -16384.0f, 16384.0f);
                                             z = Math.Clamp(z, -16384.0f, 16384.0f);
-                                            entity.Teleport(new(x, y, z), null, null);
+                                            cei.As<CBaseEntity>().Teleport(new(x, y, z), null, null);
                                         }
                                     }
                                 }
@@ -91,7 +100,7 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                             x = Math.Clamp(x, -360.0f, 360.0f);
                                             y = Math.Clamp(y, -360.0f, 360.0f);
                                             z = Math.Clamp(z, -360.0f, 360.0f);
-                                            entity.Teleport(null, new(x, y, z), null);
+                                            cei.As<CBaseEntity>().Teleport(null, new(x, y, z), null);
                                         }
                                     }
                                 }
@@ -101,8 +110,12 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                     int iMaxHealth = 100;
                                     if (keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]) && int.TryParse(keyvalue[1], out iMaxHealth))
                                     {
-                                        entity.MaxHealth = iMaxHealth;
-                                        entity.MaxHealthUpdated();
+                                        var entity = cei.As<CBaseEntity>();
+                                        if (entity != null && entity.IsValid)
+                                        {
+                                            entity.MaxHealth = iMaxHealth;
+                                            entity.MaxHealthUpdated();
+                                        }
                                     }
                                 }
                                 break;
@@ -111,14 +124,18 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                     int iHealth = 100;
                                     if (keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]) && int.TryParse(keyvalue[1], out iHealth))
                                     {
-                                        entity.Health = iHealth;
-                                        entity.HealthUpdated();
+                                        var entity = cei.As<CBaseEntity>();
+                                        if (entity != null && entity.IsValid)
+                                        {
+                                            entity.Health = iHealth;
+                                            entity.HealthUpdated();
+                                        }
                                     }
                                 }
                                 break;
                             case "movetype":
                                 {
-                                    var player = EntityToPlayer(entity);
+                                    var player = EntityToPlayer(cei.As<CBaseEntity>());
                                     if (player != null && player.IsValid && player.PlayerPawn.Value != null && player.PlayerPawn.Value.IsValid && keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]))
                                     {
                                         if (byte.TryParse(keyvalue[1], out byte iMovetype))
@@ -133,9 +150,9 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                 break;
                             case "entitytemplate":
                                 {
-                                    if (keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]) && string.Equals(entity.DesignerName, "env_entity_maker"))
+                                    if (keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]) && string.Equals(cei.DesignerName, "env_entity_maker"))
                                     {
-                                        (entity as CEnvEntityMaker)?.Template = keyvalue[1];
+                                        cei.As<CEnvEntityMaker>()?.Template = keyvalue[1];
                                     }
                                 }
                                 break;
@@ -148,10 +165,17 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                             x = Math.Clamp(x, -4096.0f, 4096.0f);
                                             y = Math.Clamp(y, -4096.0f, 4096.0f);
                                             z = Math.Clamp(z, -4096.0f, 4096.0f);
-                                            entity.BaseVelocity.X = x;
-                                            entity.BaseVelocity.Y = y;
-                                            entity.BaseVelocity.Z = z;
-                                            entity.BaseVelocityUpdated();
+                                            var entity = cei.As<CBaseEntity>();
+                                            if (entity != null && entity.IsValid)
+                                            {
+                                                if(sw_iodebug?.Value == true)
+                                                    Core.Logger.LogInformation($"[CustomIO]: {entity.DesignerName} Name: {entity.Entity?.Name} basevelocity {x} {y} {z}");
+
+                                                entity.BaseVelocity.X = x;
+                                                entity.BaseVelocity.Y = y;
+                                                entity.BaseVelocity.Z = z;
+                                                entity.BaseVelocityUpdated();
+                                            }
                                         }
                                     }
                                 }
@@ -165,34 +189,42 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                             x = Math.Clamp(x, -4096.0f, 4096.0f);
                                             y = Math.Clamp(y, -4096.0f, 4096.0f);
                                             z = Math.Clamp(z, -4096.0f, 4096.0f);
-                                            entity.Teleport(null, null, new(x, y, z));
+                                            var entity = cei.As<CBaseEntity>();
+                                            if (entity != null && entity.IsValid)
+                                            {
+                                                entity.Teleport(null, null, new(x, y, z));
+                                            }
                                         }
                                     }
                                 }
                                 break;
                             case "target":
                                 {
-                                    if (keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]) && Core.EntitySystem.GetAllEntitiesByDesignerName<CEntityInstance>(keyvalue[1]).FirstOrDefault() != null)
+                                    if (keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]) && Core.EntitySystem.GetAllEntities().FirstOrDefault(a => a.IsValid && a.Entity?.Name == keyvalue[1]) is CEntityInstance gettarget && gettarget.IsValid)
                                     {
-                                        entity.Target = keyvalue[1];
+                                        var entity = cei.As<CBaseEntity>();
+                                        if (entity != null && entity.IsValid)
+                                        {
+                                            entity.Target = gettarget.Entity!.Name;
+                                        }
                                     }
                                 }
                                 break;
                             case "filtername":
                                 {
-                                    if (entity.DesignerName.StartsWith("trigger_") && keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]) && Core.EntitySystem.GetAllEntitiesByDesignerName<CEntityInstance>(keyvalue[1]).FirstOrDefault() != null)
+                                    if (cei.DesignerName.StartsWith("trigger_") && keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]) && Core.EntitySystem.GetAllEntities().FirstOrDefault(a => a.IsValid && a.Entity?.Name == keyvalue[1]) is CEntityInstance gettarget && gettarget.IsValid)
                                     {
-                                        (entity as CBaseTrigger)?.FilterName = keyvalue[1];
+                                        cei.As<CBaseTrigger>()?.FilterName = gettarget.Entity!.Name;
                                     }
                                 }
                                 break;
                             case "force":
                                 {
-                                    if (keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]) && string.Equals(entity.DesignerName, "phys_thruster"))
+                                    if (keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]) && string.Equals(cei.DesignerName, "phys_thruster"))
                                     {
                                         if (float.TryParse(keyvalue[1], out float fForce))
                                         {
-                                            (entity as CPhysThruster)?.Force = fForce;
+                                            cei.As<CPhysThruster>()?.Force = fForce;
                                         }
                                     }
                                 }
@@ -203,7 +235,11 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                     {
                                         if (float.TryParse(keyvalue[1], out float fGravity))
                                         {
-                                            CBaseEntity_SetGravityScale_Func?.Call(entity.Address, fGravity);
+                                            var entity = cei.As<CBaseEntity>();
+                                            if (entity != null && entity.IsValid)
+                                            {
+                                                CBaseEntity_SetGravityScale_Func?.Call(entity.Address, fGravity);
+                                            }
                                         }
                                     }
                                 }
@@ -214,8 +250,12 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                     {
                                         if (float.TryParse(keyvalue[1], out float fTimeScale))
                                         {
-                                            entity.TimeScale = fTimeScale;
-                                            entity.TimeScaleUpdated();
+                                            var entity = cei.As<CBaseEntity>();
+                                            if (entity != null && entity.IsValid)
+                                            {
+                                                entity.TimeScale = fTimeScale;
+                                                entity.TimeScaleUpdated();
+                                            }
                                         }
                                     }
                                 }
@@ -226,15 +266,19 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                     {
                                         if (float.TryParse(keyvalue[1], out float fFriction))
                                         {
-                                            entity.Friction = fFriction;
-                                            entity.FrictionUpdated();
+                                            var entity = cei.As<CBaseEntity>();
+                                            if (entity != null && entity.IsValid)
+                                            {
+                                                entity.Friction = fFriction;
+                                                entity.FrictionUpdated();
+                                            }
                                         }
                                     }
                                 }
                                 break;
                             case "speed":
                                 {
-                                    var player = EntityToPlayer(entity);
+                                    var player = EntityToPlayer(cei.As<CBaseEntity>());
                                     if (player != null && player.IsValid && player.PlayerPawn.Value != null && player.PlayerPawn.Value.IsValid && player.PlayerPawn.Value.MovementServices != null && keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]))
                                     {
                                         float fSpeed = 0.001f;
@@ -251,7 +295,7 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                 break;
                             case "runspeed":
                                 {
-                                    var player = EntityToPlayer(entity);
+                                    var player = EntityToPlayer(cei.As<CBaseEntity>());
                                     if (player != null && player.IsValid && player.PlayerPawn.Value != null && player.PlayerPawn.Value.IsValid && keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]))
                                     {
                                         float fRunSpeed = 0.001f;
@@ -266,40 +310,40 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                 break;
                             case "damage":
                                 {
-                                    if (string.Equals(entity.DesignerName, "point_hurt"))
+                                    if (string.Equals(cei.DesignerName, "point_hurt"))
                                     {
                                         if (keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]) && int.TryParse(keyvalue[1], out int iDamage))
                                         {
-                                            (entity as CPointHurt)?.Damage = iDamage;
+                                            cei.As<CPointHurt>()?.Damage = iDamage;
                                         }
                                     }
                                 }
                                 break;
                             case "damagetype":
                                 {
-                                    if (string.Equals(entity.DesignerName, "point_hurt"))
+                                    if (string.Equals(cei.DesignerName, "point_hurt"))
                                     {
                                         if (keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]) && int.TryParse(keyvalue[1], out int iBitsDamageType))
                                         {
-                                            (entity as CPointHurt)?.BitsDamageType = (DamageTypes_t)iBitsDamageType;
+                                            cei.As<CPointHurt>()?.BitsDamageType = (DamageTypes_t)iBitsDamageType;
                                         }
                                     }
                                 }
                                 break;
                             case "damageradius":
                                 {
-                                    if (string.Equals(entity.DesignerName, "point_hurt"))
+                                    if (string.Equals(cei.DesignerName, "point_hurt"))
                                     {
                                         if (keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]) && int.TryParse(keyvalue[1], out int iDamageRadius))
                                         {
-                                            (entity as CPointHurt)?.Radius = iDamageRadius;
+                                            cei.As<CPointHurt>()?.Radius = iDamageRadius;
                                         }
                                     }
                                 }
                                 break;
                             case "case":
                                 {
-                                    if (string.Equals(entity.DesignerName, "logic_case"))
+                                    if (string.Equals(cei.DesignerName, "logic_case"))
                                     {
                                         if (keyvalue.Length >= 3 && !string.IsNullOrEmpty(keyvalue[1]) && !string.IsNullOrEmpty(keyvalue[2]) && int.TryParse(keyvalue[1], out int iCase))
                                         {
@@ -311,7 +355,7 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                             }
                                             if (iCase >= 1 && iCase <= 32)
                                             {
-                                                (entity as CLogicCase)?.Case[iCase - 1] = sArgs;
+                                                cei.As<CLogicCase>()?.Case[iCase - 1] = sArgs;
                                             }
                                         }
                                     }
@@ -330,11 +374,11 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                     player.ScoreUpdated();
                 }
             }
-            else if (Equals(input.ToLower(), "setmessage") && string.Equals(entity.DesignerName, "env_hudhint"))
+            else if (Equals(input.ToLower(), "setmessage") && string.Equals(cei.DesignerName, "env_hudhint"))
             {
                 if (!string.IsNullOrEmpty(value))
                 {
-                    (entity as CEnvHudHint)?.Message = value;
+                    cei.As<CEnvHudHint>()?.Message = value;
                 }
             }
             else if (Equals(input.ToLower(), "setmodel"))
@@ -388,5 +432,115 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
             }
         }
         return null;
+    }
+
+    public string? TryToString(CVariant<CVariantDefaultAllocator> cVariant)
+    {
+        if (!cVariant.TryGetBool(out var value))
+        {
+            if (!cVariant.TryGetChar(out var value2))
+            {
+                if (!cVariant.TryGetInt16(out var value3))
+                {
+                    if (!cVariant.TryGetUInt16(out var value4))
+                    {
+                        if (!cVariant.TryGetInt32(out var value5))
+                        {
+                            if (!cVariant.TryGetUInt32(out var value6))
+                            {
+                                if (!cVariant.TryGetInt64(out var value7))
+                                {
+                                    if (!cVariant.TryGetUInt64(out var value8))
+                                    {
+                                        if (!cVariant.TryGetFloat(out var value9))
+                                        {
+                                            if (!cVariant.TryGetDouble(out var value10))
+                                            {
+                                                if (!cVariant.TryGetResourceHandle(out var value11))
+                                                {
+                                                    if (!cVariant.TryGetUtlStringToken(out var value12))
+                                                    {
+                                                        if (!cVariant.TryGetHScript(out var value13))
+                                                        {
+                                                            if (!cVariant.TryGetCHandle(out CHandle<CBaseEntity> value14))
+                                                            {
+                                                                if (!cVariant.TryGetVector2D(out var value15))
+                                                                {
+                                                                    if (!cVariant.TryGetVector(out var value16))
+                                                                    {
+                                                                        if (!cVariant.TryGetVector4D(out var value17))
+                                                                        {
+                                                                            if (!cVariant.TryGetQAngle(out var value18))
+                                                                            {
+                                                                                if (!cVariant.TryGetQuaternion(out var value19))
+                                                                                {
+                                                                                    if (!cVariant.TryGetColor(out var value20))
+                                                                                    {
+                                                                                        if (!cVariant.TryGetString(out string? value21))
+                                                                                        {
+                                                                                            return string.Empty;
+                                                                                        }
+
+                                                                                        return value21;
+                                                                                    }
+
+                                                                                    return $"{value20}";
+                                                                                }
+
+                                                                                return $"{value19}";
+                                                                            }
+
+                                                                            return $"{value18}";
+                                                                        }
+
+                                                                        return $"{value17}";
+                                                                    }
+
+                                                                    return $"{value16}";
+                                                                }
+
+                                                                return $"{value15}";
+                                                            }
+
+                                                            return $"{value14.Raw}";
+                                                        }
+
+                                                        return $"{value13}";
+                                                    }
+
+                                                    return $"{value12}";
+                                                }
+
+                                                return $"{value11}";
+                                            }
+
+                                            return $"{value10}";
+                                        }
+
+                                        return $"{value9}";
+                                    }
+
+                                    return $"{value8}";
+                                }
+
+                                return $"{value7}";
+                            }
+
+                            return $"{value6}";
+                        }
+
+                        return $"{value5}";
+                    }
+
+                    return $"{value4}";
+                }
+
+                return $"{value3}";
+            }
+
+            return $"{value2}";
+        }
+
+        return $"{value}";
     }
 }
