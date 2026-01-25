@@ -204,7 +204,7 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                 break;
                             case "target":
                                 {
-                                    if (keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]) && Core.EntitySystem.GetAllEntities().FirstOrDefault(a => a.IsValid && a.Entity?.Name == keyvalue[1]) is CEntityInstance gettarget && gettarget.IsValid)
+                                    if (keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]) && FindEntityByName(keyvalue[1]) is CEntityInstance gettarget && gettarget.IsValid)
                                     {
                                         var entity = cei.As<CBaseEntity>();
                                         if (entity != null && entity.IsValid)
@@ -216,7 +216,7 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                 break;
                             case "filtername":
                                 {
-                                    if (cei.DesignerName.StartsWith("trigger_") && keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]) && Core.EntitySystem.GetAllEntities().FirstOrDefault(a => a.IsValid && a.Entity?.Name == keyvalue[1]) is CEntityInstance gettarget && gettarget.IsValid && gettarget.DesignerName.StartsWith("filter_"))
+                                    if (cei.DesignerName.StartsWith("trigger_") && keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]) && FindEntityByName(keyvalue[1]) is CEntityInstance gettarget && gettarget.IsValid && gettarget.DesignerName.StartsWith("filter_"))
                                     {
                                         var trigger = cei.As<CBaseTrigger>();
                                         trigger?.FilterName = gettarget.Entity!.Name;
@@ -426,6 +426,11 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
         {
             Core.Logger.LogError("OnEntityIdentityAcceptInputHook: {0} - {1}", ex.Message, ex.Source);
         }
+    }
+
+    private CEntityInstance? FindEntityByName(string eName)
+    {
+        return Core.EntitySystem.GetAllEntities().FirstOrDefault(e => e.IsValid && e.Entity != null && e.Entity.Name.Equals(eName, StringComparison.OrdinalIgnoreCase));
     }
 
     private static CCSPlayerController? EntityToPlayer(CEntityInstance? entity)
