@@ -10,7 +10,7 @@ using SwiftlyS2.Shared.SchemaDefinitions;
 
 namespace CustomIO;
 
-[PluginMetadata(Id = "CS2 CustomIO For SW2", Version = "1.0", Name = "CustomIO SW2", Author = "DarkerZ & LynchMus", Description = "Fixes missing keyvalues from CSS/CS:GO", Website = "https://github.com/himenekocn/CS2-CustomIO-For-SW2")]
+[PluginMetadata(Id = "CS2 CustomIO For SW2", Version = "1.1", Name = "CustomIO SW2", Author = "DarkerZ & LynchMus", Description = "Fixes missing keyvalues from CSS/CS:GO", Website = "https://github.com/himenekocn/CS2-CustomIO-For-SW2")]
 public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
 {
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -46,7 +46,14 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
             return;
         }
 
-        var cei = @event.Identity.EntityInstance;
+        var ceid = @event.Identity;
+
+        if (ceid == null || !ceid.IsValid)
+        {
+            return;
+        }
+
+        var cei = ceid.EntityInstance;
 
         if (cei == null || !cei.IsValid)
         {
@@ -73,7 +80,7 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                 {
                                     if (keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]))
                                     {
-                                        CEntityIdentity_SetEntityName_Func?.Call(cei.Address, keyvalue[1]);
+                                        CEntityIdentity_SetEntityName_Func?.Call(ceid.Address, keyvalue[1]);
                                     }
                                 }
                                 break;
@@ -168,9 +175,6 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                             var entity = cei.As<CBaseEntity>();
                                             if (entity != null && entity.IsValid)
                                             {
-                                                if(sw_iodebug?.Value == true)
-                                                    Core.Logger.LogInformation($"[CustomIO]: {entity.DesignerName} Name: {entity.Entity?.Name} basevelocity {x} {y} {z}");
-
                                                 entity.BaseVelocity.X = x;
                                                 entity.BaseVelocity.Y = y;
                                                 entity.BaseVelocity.Z = z;
@@ -212,9 +216,11 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                 break;
                             case "filtername":
                                 {
-                                    if (cei.DesignerName.StartsWith("trigger_") && keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]) && Core.EntitySystem.GetAllEntities().FirstOrDefault(a => a.IsValid && a.Entity?.Name == keyvalue[1]) is CEntityInstance gettarget && gettarget.IsValid)
+                                    if (cei.DesignerName.StartsWith("trigger_") && keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]) && Core.EntitySystem.GetAllEntities().FirstOrDefault(a => a.IsValid && a.Entity?.Name == keyvalue[1]) is CEntityInstance gettarget && gettarget.IsValid && gettarget.DesignerName.StartsWith("filter_"))
                                     {
-                                        cei.As<CBaseTrigger>()?.FilterName = gettarget.Entity!.Name;
+                                        var trigger = cei.As<CBaseTrigger>();
+                                        trigger?.FilterName = gettarget.Entity!.Name;
+                                        trigger?.Filter.Raw = gettarget.Entity!.EntityHandle.Raw;
                                     }
                                 }
                                 break;
