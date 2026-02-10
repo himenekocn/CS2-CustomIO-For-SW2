@@ -1,16 +1,19 @@
+using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using SwiftlyS2.Shared;
 using SwiftlyS2.Shared.Convars;
 using SwiftlyS2.Shared.Events;
+using SwiftlyS2.Shared.GameEventDefinitions;
 using SwiftlyS2.Shared.Memory;
+using SwiftlyS2.Shared.Misc;
 using SwiftlyS2.Shared.Natives;
 using SwiftlyS2.Shared.Plugins;
 using SwiftlyS2.Shared.SchemaDefinitions;
 
 namespace CustomIO;
 
-[PluginMetadata(Id = "CS2 CustomIO For SW2", Version = "1.1", Name = "CustomIO SW2", Author = "DarkerZ & LynchMus", Description = "Fixes missing keyvalues from CSS/CS:GO", Website = "https://github.com/himenekocn/CS2-CustomIO-For-SW2")]
+[PluginMetadata(Id = "CS2 CustomIO For SW2", Version = "1.2", Name = "CustomIO SW2", Author = "DarkerZ & LynchMus", Description = "Fixes missing keyvalues from CSS/CS:GO", Website = "https://github.com/himenekocn/CS2-CustomIO-For-SW2")]
 public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
 {
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -21,7 +24,16 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
     private delegate void CBaseEntity_SetGravityScale_Delegate(nint a1, float a2);
     private static IUnmanagedFunction<CBaseEntity_SetGravityScale_Delegate>? CBaseEntity_SetGravityScale_Func;
 
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate void ProcessMovement_Delegate(nint a1, nint a2);
+    private static IUnmanagedFunction<ProcessMovement_Delegate>? ProcessMovement_Func;
+    private Guid? ProcessMovement_HookId;
+
+    private Guid? SpawnEvent_HookId;
+
     private IConVar<bool>? sw_iodebug;
+
+    private ConcurrentDictionary<int, float> pflSpeedMod = [];
 
     public override void Load(bool hotReload)
     {
@@ -29,13 +41,110 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
 
         CEntityIdentity_SetEntityName_Func = Core.Memory.GetUnmanagedFunctionByAddress<CEntityIdentity_SetEntityName_Delegate>(Core.GameData.GetSignature("CEntityInstance::SetEntityName"));
         CBaseEntity_SetGravityScale_Func = Core.Memory.GetUnmanagedFunctionByAddress<CBaseEntity_SetGravityScale_Delegate>(Core.GameData.GetSignature("CBaseEntity::SetGravityScale"));
+        ProcessMovement_Func = Core.Memory.GetUnmanagedFunctionByAddress<ProcessMovement_Delegate>(Core.GameData.GetSignature("ProcessMovement"));
+        ProcessMovement_HookId = ProcessMovement_Func.AddHook(ProcessMovementHook);
 
         Core.Event.OnEntityIdentityAcceptInputHook += OnEntityIdentityAcceptInputHook;
+        Core.Event.OnClientPutInServer += OnClientPutInServer;
+        Core.Event.OnClientDisconnected += OnClientDisconnected;
+
+        SpawnEvent_HookId = Core.GameEvent.HookPost<EventPlayerSpawn>(OnPlayerSpawn);
+
+        pflSpeedMod.Clear();
     }
 
     public override void Unload()
     {
+        if (ProcessMovement_HookId != null)
+            ProcessMovement_Func?.RemoveHook(ProcessMovement_HookId.Value);
+
         Core.Event.OnEntityIdentityAcceptInputHook -= OnEntityIdentityAcceptInputHook;
+        Core.Event.OnClientPutInServer -= OnClientPutInServer;
+        Core.Event.OnClientDisconnected -= OnClientDisconnected;
+
+        if (SpawnEvent_HookId != null)
+            Core.GameEvent.Unhook(SpawnEvent_HookId.Value);
+
+        pflSpeedMod.Clear();
+    }
+
+    private ProcessMovement_Delegate ProcessMovementHook(Func<ProcessMovement_Delegate> func)
+    {
+        return (a1, a2) =>
+        {
+            var ms = Helper.AsSchema<CCSPlayer_MovementServices>(a1);
+            if (!ms.IsValid)
+            {
+                func()(a1, a2);
+                return;
+            }
+
+            var pawn = ms.Pawn;
+            if (pawn == null || !pawn.IsValid)
+            {
+                func()(a1, a2);
+                return;
+            }
+
+            var player = Core.PlayerManager.GetPlayerFromPawn(pawn);
+            if (player == null || !player.IsValid)
+            {
+                func()(a1, a2);
+                return;
+            }
+
+            if (!pflSpeedMod.TryGetValue(player.UserID, out var speedMod))
+                pflSpeedMod[player.UserID] = speedMod = 1.0f;
+
+            if (speedMod == 1.0f)
+            {
+                func()(a1, a2);
+                return;
+            }
+
+            float flStoreFrametime = Core.Engine.GlobalVars.FrameTime;
+            Core.Engine.GlobalVars.FrameTime *= speedMod;
+            func()(a1, a2);
+            Core.Engine.GlobalVars.FrameTime = flStoreFrametime;
+        };
+    }
+
+
+
+    private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
+    {
+        var slot = @event.PlayerId;
+        var player = Core.PlayerManager.GetPlayer(slot);
+        if (player == null || !player.Controller.IsValid)
+        {
+            return;
+        }
+
+        pflSpeedMod.TryRemove(player.UserID, out _);
+    }
+
+    private void OnClientPutInServer(IOnClientPutInServerEvent @event)
+    {
+        var slot = @event.PlayerId;
+        var player = Core.PlayerManager.GetPlayer(slot);
+        if (player == null || !player.IsValid)
+        {
+            return;
+        }
+
+        pflSpeedMod.TryAdd(player.UserID, 1.0f);
+    }
+
+    private HookResult OnPlayerSpawn(EventPlayerSpawn @event)
+    {
+        var player = @event.UserIdPlayer;
+        if (player == null || !player.IsValid)
+        {
+            return HookResult.Continue;
+        }
+
+        pflSpeedMod[player.UserID] = 1.0f;
+        return HookResult.Continue;
     }
 
     public void OnEntityIdentityAcceptInputHook(IOnEntityIdentityAcceptInputHookEvent @event)
@@ -69,7 +178,7 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
             {
                 if (!string.IsNullOrEmpty(value))
                 {
-                    if(sw_iodebug?.Value == true)
+                    if (sw_iodebug?.Value == true)
                         Core.Logger.LogInformation($"[CustomIO]: {input} {value}");
                     string[] keyvalue = value.Split([' ']);
                     if (keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[0]))
@@ -244,6 +353,8 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                             var entity = cei.As<CBaseEntity>();
                                             if (entity != null && entity.IsValid)
                                             {
+                                                entity.GravityScale = fGravity;
+                                                entity.GravityScaleUpdated();
                                                 CBaseEntity_SetGravityScale_Func?.Call(entity.Address, fGravity);
                                             }
                                         }
@@ -285,31 +396,28 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                             case "speed":
                                 {
                                     var player = EntityToPlayer(cei.As<CBaseEntity>());
-                                    if (player != null && player.IsValid && player.PlayerPawn.Value != null && player.PlayerPawn.Value.IsValid && player.PlayerPawn.Value.MovementServices != null && keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]))
+                                    if (player != null && player.IsValid && keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]))
                                     {
-                                        float fSpeed = 0.001f;
-                                        if (float.TryParse(keyvalue[1], out fSpeed))
+                                        if (float.TryParse(keyvalue[1], out float fSpeed))
                                         {
                                             if (fSpeed <= 0.0f) fSpeed = 0.001f;
-                                            player.PlayerPawn.Value.MovementServices.Maxspeed = 260.0f * fSpeed;
-                                            player.PlayerPawn.Value.MovementServices.MaxspeedUpdated();
-                                            player.PlayerPawn.Value.VelocityModifier = fSpeed;
-                                            player.PlayerPawn.Value.VelocityModifierUpdated();
+                                            var iplayer = Core.PlayerManager.GetPlayerFromController(player);
+                                            if(iplayer != null && iplayer.IsValid)
+                                                pflSpeedMod[iplayer.UserID] = fSpeed;
                                         }
                                     }
                                 }
                                 break;
                             case "runspeed":
                                 {
-                                    var player = EntityToPlayer(cei.As<CBaseEntity>());
-                                    if (player != null && player.IsValid && player.PlayerPawn.Value != null && player.PlayerPawn.Value.IsValid && keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]))
+                                    var pawn = EntityToPawn(cei.As<CBaseEntity>());
+                                    if (pawn != null && pawn.IsValid && keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]))
                                     {
-                                        float fRunSpeed = 0.001f;
-                                        if (float.TryParse(keyvalue[1], out fRunSpeed))
+                                        if (float.TryParse(keyvalue[1], out float fRunSpeed))
                                         {
                                             if (fRunSpeed <= 0.0f) fRunSpeed = 0.001f;
-                                            player.PlayerPawn.Value.VelocityModifier = fRunSpeed;
-                                            player.PlayerPawn.Value.VelocityModifierUpdated();
+                                            pawn.VelocityModifier = fRunSpeed;
+                                            pawn.VelocityModifierUpdated();
                                         }
                                     }
                                 }
@@ -391,32 +499,28 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
             {
                 if (!string.IsNullOrEmpty(value))
                 {
-                    var player = EntityToPlayer(activator);
-                    if (player != null && player.IsValid)
+                    var pawn = EntityToPawn(activator);
+                    if (pawn != null && pawn.IsValid)
                     {
-                        var pawn = player.PlayerPawn.Value;
-                        if (pawn != null && pawn.IsValid)
+                        pawn.SetModel(value);
+                        if (pawn.ActualMoveType > MoveType_t.MOVETYPE_OBSOLETE)
                         {
-                            pawn.SetModel(value);
-                            if (pawn.ActualMoveType > MoveType_t.MOVETYPE_OBSOLETE)
-                            {
-                                var originalVelocity = pawn.AbsVelocity;
-                                pawn.Teleport(null, null, Vector.Zero);
-                                pawn.MoveType = MoveType_t.MOVETYPE_OBSOLETE;
-                                var cHandle = pawn.Entity!.EntityHandle;
+                            var originalVelocity = pawn.AbsVelocity;
+                            pawn.Teleport(null, null, Vector.Zero);
+                            pawn.MoveType = MoveType_t.MOVETYPE_OBSOLETE;
+                            var cHandle = pawn.Entity!.EntityHandle;
 
-                                Core.Scheduler.DelayBySeconds(0.02f, () =>
+                            Core.Scheduler.DelayBySeconds(0.02f, () =>
+                            {
+                                if (cHandle.IsValid)
                                 {
-                                    if (cHandle.IsValid)
+                                    if (cHandle.Value is CCSPlayerPawn pawn && pawn.IsValid)
                                     {
-                                        if (cHandle.Value is CCSPlayerPawn pawn && pawn.IsValid)
-                                        {
-                                            pawn.MoveType = MoveType_t.MOVETYPE_WALK;
-                                            pawn.Teleport(null, null, originalVelocity);
-                                        }
+                                        pawn.MoveType = MoveType_t.MOVETYPE_WALK;
+                                        pawn.Teleport(null, null, originalVelocity);
                                     }
-                                });
-                            }
+                                }
+                            });
                         }
                     }
                 }
@@ -440,6 +544,18 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
             if (entity is CCSPlayerPawn pawn && pawn.Controller.Value != null && pawn.Controller.Value.IsValid)
             {
                 if (pawn.Controller.Value is CCSPlayerController player && player.IsValid) return player;
+            }
+        }
+        return null;
+    }
+
+    private static CCSPlayerPawn? EntityToPawn(CEntityInstance? entity)
+    {
+        if (entity != null && entity.IsValid && string.Equals(entity.DesignerName, "player"))
+        {
+            if (entity is CCSPlayerPawn pawn && pawn.IsValid)
+            {
+                return pawn;
             }
         }
         return null;
