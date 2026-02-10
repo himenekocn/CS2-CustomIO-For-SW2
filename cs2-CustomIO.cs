@@ -13,7 +13,7 @@ using SwiftlyS2.Shared.SchemaDefinitions;
 
 namespace CustomIO;
 
-[PluginMetadata(Id = "CS2 CustomIO For SW2", Version = "1.2", Name = "CustomIO SW2", Author = "DarkerZ & LynchMus", Description = "Fixes missing keyvalues from CSS/CS:GO", Website = "https://github.com/himenekocn/CS2-CustomIO-For-SW2")]
+[PluginMetadata(Id = "CS2 CustomIO For SW2", Version = "1.3", Name = "CustomIO SW2", Author = "DarkerZ & LynchMus", Description = "Fixes missing keyvalues from CSS/CS:GO", Website = "https://github.com/himenekocn/CS2-CustomIO-For-SW2")]
 public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
 {
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -251,7 +251,7 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                 break;
                             case "movetype":
                                 {
-                                    var player = EntityToPlayer(cei.As<CBaseEntity>());
+                                    var player = EntityToPlayer(cei);
                                     if (player != null && player.IsValid && player.PlayerPawn.Value != null && player.PlayerPawn.Value.IsValid && keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]))
                                     {
                                         if (byte.TryParse(keyvalue[1], out byte iMovetype))
@@ -396,14 +396,14 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                 break;
                             case "speed":
                                 {
-                                    var player = EntityToPlayer(cei.As<CBaseEntity>());
+                                    var player = EntityToPlayer(cei);
                                     if (player != null && player.IsValid && keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]))
                                     {
                                         if (float.TryParse(keyvalue[1], out float fSpeed))
                                         {
                                             if (fSpeed <= 0.0f) fSpeed = 0.001f;
                                             var iplayer = Core.PlayerManager.GetPlayerFromController(player);
-                                            if(iplayer != null && iplayer.IsValid)
+                                            if (iplayer != null && iplayer.IsValid)
                                                 pflSpeedMod[iplayer.UserID] = fSpeed;
                                         }
                                     }
@@ -411,7 +411,7 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                 break;
                             case "runspeed":
                                 {
-                                    var pawn = EntityToPawn(cei.As<CBaseEntity>());
+                                    var pawn = EntityToPawn(cei);
                                     if (pawn != null && pawn.IsValid && keyvalue.Length >= 2 && !string.IsNullOrEmpty(keyvalue[1]))
                                     {
                                         if (float.TryParse(keyvalue[1], out float fRunSpeed))
@@ -542,9 +542,14 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
     {
         if (entity != null && entity.IsValid && string.Equals(entity.DesignerName, "player"))
         {
-            if (entity is CCSPlayerPawn pawn && pawn.Controller.Value != null && pawn.Controller.Value.IsValid)
+            var pawn = entity.As<CCSPlayerPawn>();
+            if (pawn is not null && pawn.IsValid)
             {
-                if (pawn.Controller.Value is CCSPlayerController player && player.IsValid) return player;
+                var player = pawn.ToPlayer();
+                if (player is not null && player.IsValid && player.Controller is not null && player.Controller.IsValid)
+                {
+                    return player.Controller;
+                }
             }
         }
         return null;
@@ -554,7 +559,8 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
     {
         if (entity != null && entity.IsValid && string.Equals(entity.DesignerName, "player"))
         {
-            if (entity is CCSPlayerPawn pawn && pawn.IsValid)
+            var pawn = entity.As<CCSPlayerPawn>();
+            if (pawn is not null && pawn.IsValid)
             {
                 return pawn;
             }
