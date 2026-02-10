@@ -355,6 +355,7 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                             {
                                                 entity.GravityScale = fGravity;
                                                 entity.GravityScaleUpdated();
+                                                entity.ActualGravityScale = fGravity;
                                                 CBaseEntity_SetGravityScale_Func?.Call(entity.Address, fGravity);
                                             }
                                         }
