@@ -13,7 +13,7 @@ using SwiftlyS2.Shared.SchemaDefinitions;
 
 namespace CustomIO;
 
-[PluginMetadata(Id = "CS2 CustomIO For SW2", Version = "1.3", Name = "CustomIO SW2", Author = "DarkerZ & LynchMus", Description = "Fixes missing keyvalues from CSS/CS:GO", Website = "https://github.com/himenekocn/CS2-CustomIO-For-SW2")]
+[PluginMetadata(Id = "CS2 CustomIO For SW2", Version = "1.4", Name = "CustomIO SW2", Author = "DarkerZ & LynchMus", Description = "Fixes missing keyvalues from CSS/CS:GO", Website = "https://github.com/himenekocn/CS2-CustomIO-For-SW2")]
 public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
 {
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -570,111 +570,90 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
 
     public string? TryToString(CVariant<CVariantDefaultAllocator> cVariant)
     {
-        if (!cVariant.TryGetBool(out var value))
+        if (cVariant.TryGetBool(out var boolValue))
         {
-            if (!cVariant.TryGetChar(out var value2))
-            {
-                if (!cVariant.TryGetInt16(out var value3))
-                {
-                    if (!cVariant.TryGetUInt16(out var value4))
-                    {
-                        if (!cVariant.TryGetInt32(out var value5))
-                        {
-                            if (!cVariant.TryGetUInt32(out var value6))
-                            {
-                                if (!cVariant.TryGetInt64(out var value7))
-                                {
-                                    if (!cVariant.TryGetUInt64(out var value8))
-                                    {
-                                        if (!cVariant.TryGetFloat(out var value9))
-                                        {
-                                            if (!cVariant.TryGetDouble(out var value10))
-                                            {
-                                                if (!cVariant.TryGetResourceHandle(out var value11))
-                                                {
-                                                    if (!cVariant.TryGetUtlStringToken(out var value12))
-                                                    {
-                                                        if (!cVariant.TryGetHScript(out var value13))
-                                                        {
-                                                            if (!cVariant.TryGetCHandle(out CHandle<CBaseEntity> value14))
-                                                            {
-                                                                if (!cVariant.TryGetVector2D(out var value15))
-                                                                {
-                                                                    if (!cVariant.TryGetVector(out var value16))
-                                                                    {
-                                                                        if (!cVariant.TryGetVector4D(out var value17))
-                                                                        {
-                                                                            if (!cVariant.TryGetQAngle(out var value18))
-                                                                            {
-                                                                                if (!cVariant.TryGetQuaternion(out var value19))
-                                                                                {
-                                                                                    if (!cVariant.TryGetColor(out var value20))
-                                                                                    {
-                                                                                        if (!cVariant.TryGetString(out string? value21))
-                                                                                        {
-                                                                                            return string.Empty;
-                                                                                        }
-
-                                                                                        return value21;
-                                                                                    }
-
-                                                                                    return $"{value20}";
-                                                                                }
-
-                                                                                return $"{value19}";
-                                                                            }
-
-                                                                            return $"{value18}";
-                                                                        }
-
-                                                                        return $"{value17}";
-                                                                    }
-
-                                                                    return $"{value16}";
-                                                                }
-
-                                                                return $"{value15}";
-                                                            }
-
-                                                            return $"{value14.Raw}";
-                                                        }
-
-                                                        return $"{value13}";
-                                                    }
-
-                                                    return $"{value12}";
-                                                }
-
-                                                return $"{value11}";
-                                            }
-
-                                            return $"{value10}";
-                                        }
-
-                                        return $"{value9}";
-                                    }
-
-                                    return $"{value8}";
-                                }
-
-                                return $"{value7}";
-                            }
-
-                            return $"{value6}";
-                        }
-
-                        return $"{value5}";
-                    }
-
-                    return $"{value4}";
-                }
-
-                return $"{value3}";
-            }
-
-            return $"{value2}";
+            return $"{boolValue}";
         }
-
-        return $"{value}";
+        else if (cVariant.TryGetChar(out var charValue))
+        {
+            return $"{charValue}";
+        }
+        else if (cVariant.TryGetInt16(out var int16Value))
+        {
+            return $"{int16Value}";
+        }
+        else if (cVariant.TryGetUInt16(out var uint16Value))
+        {
+            return $"{uint16Value}";
+        }
+        else if (cVariant.TryGetInt32(out var int32Value))
+        {
+            return $"{int32Value}";
+        }
+        else if (cVariant.TryGetUInt32(out var uint32Value))
+        {
+            return $"{uint32Value}";
+        }
+        else if (cVariant.TryGetInt64(out var int64Value))
+        {
+            return $"{int64Value}";
+        }
+        else if (cVariant.TryGetUInt64(out var uint64Value))
+        {
+            return $"{uint64Value}";
+        }
+        else if (cVariant.TryGetFloat(out var floatValue))
+        {
+            return $"{floatValue}";
+        }
+        else if (cVariant.TryGetDouble(out var doubleValue))
+        {
+            return $"{doubleValue}";
+        }
+        else if (cVariant.TryGetResourceHandle(out var resourceHandleValue))
+        {
+            return $"{resourceHandleValue}";
+        }
+        else if (cVariant.TryGetUtlStringToken(out var utlStringTokenValue))
+        {
+            return $"{utlStringTokenValue}";
+        }
+        else if (cVariant.TryGetHScript(out var hscriptValue))
+        {
+            return $"{hscriptValue}";
+        }
+        else if (cVariant.TryGetCHandle<CBaseEntity>(out var handleValue))
+        {
+            return $"{handleValue.Raw}";
+        }
+        else if (cVariant.TryGetVector2D(out var vector2DValue))
+        {
+            return $"{vector2DValue}";
+        }
+        else if (cVariant.TryGetVector(out var vectorValue))
+        {
+            return $"{vectorValue}";
+        }
+        else if (cVariant.TryGetVector4D(out var vector4DValue))
+        {
+            return $"{vector4DValue}";
+        }
+        else if (cVariant.TryGetQAngle(out var qAngleValue))
+        {
+            return $"{qAngleValue}";
+        }
+        else if (cVariant.TryGetQuaternion(out var quaternionValue))
+        {
+            return $"{quaternionValue}";
+        }
+        else if (cVariant.TryGetColor(out var colorValue))
+        {
+            return $"{colorValue}";
+        }
+        else if (cVariant.TryGetString(out var stringValue))
+        {
+            return $"{stringValue}";
+        }
+        return string.Empty;
     }
 }
