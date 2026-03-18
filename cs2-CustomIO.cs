@@ -13,7 +13,7 @@ using SwiftlyS2.Shared.SchemaDefinitions;
 
 namespace CustomIO;
 
-[PluginMetadata(Id = "CS2 CustomIO For SW2", Version = "1.4", Name = "CustomIO SW2", Author = "DarkerZ & LynchMus", Description = "Fixes missing keyvalues from CSS/CS:GO", Website = "https://github.com/himenekocn/CS2-CustomIO-For-SW2")]
+[PluginMetadata(Id = "CS2 CustomIO For SW2", Version = "1.5", Name = "CustomIO SW2", Author = "DarkerZ & LynchMus", Description = "Fixes missing keyvalues from CSS/CS:GO", Website = "https://github.com/himenekocn/CS2-CustomIO-For-SW2")]
 public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
 {
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -508,7 +508,9 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                         {
                             var originalVelocity = pawn.AbsVelocity;
                             pawn.Teleport(null, null, Vector.Zero);
+                            pawn.ActualMoveType = MoveType_t.MOVETYPE_OBSOLETE;
                             pawn.MoveType = MoveType_t.MOVETYPE_OBSOLETE;
+                            pawn.MoveTypeUpdated();
                             var cHandle = pawn.Entity!.EntityHandle;
 
                             Core.Scheduler.DelayBySeconds(0.02f, () =>
@@ -517,7 +519,9 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
                                 {
                                     if (cHandle.Value is CCSPlayerPawn pawn && pawn.IsValid)
                                     {
+                                        pawn.ActualMoveType = MoveType_t.MOVETYPE_WALK;
                                         pawn.MoveType = MoveType_t.MOVETYPE_WALK;
+                                        pawn.MoveTypeUpdated();
                                         pawn.Teleport(null, null, originalVelocity);
                                     }
                                 }
