@@ -1,7 +1,7 @@
 {
   "CEntityInstance::SetEntityName": {
     "lib": "server",
-    "windows": "48 89 5C 24 10 57 48 83 EC ? 48 8B D9 4C 8B C2",
+    "windows": "48 89 5C 24 10 57 48 83 EC 20 48 8B D9 4C 8B C2",
     "linux": "55 48 89 F2 48 89 E5 41 55 41 54 53"
   },
   "CBaseEntity::SetGravityScale": {
