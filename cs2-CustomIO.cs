@@ -13,7 +13,7 @@ using SwiftlyS2.Shared.SchemaDefinitions;
 
 namespace CustomIO;
 
-[PluginMetadata(Id = "CS2 CustomIO For SW2", Version = "1.5", Name = "CustomIO SW2", Author = "DarkerZ & LynchMus", Description = "Fixes missing keyvalues from CSS/CS:GO", Website = "https://github.com/himenekocn/CS2-CustomIO-For-SW2")]
+[PluginMetadata(Id = "CS2 CustomIO For SW2", Version = "1.6", Name = "CustomIO SW2", Author = "DarkerZ & LynchMus", Description = "Fixes missing keyvalues from CSS/CS:GO", Website = "https://github.com/himenekocn/CS2-CustomIO-For-SW2")]
 public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
 {
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -39,10 +39,36 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
     {
         sw_iodebug = Core.ConVar.CreateOrFind("sw_iodebug", "Enable IO Debug", false);
 
-        CEntityIdentity_SetEntityName_Func = Core.Memory.GetUnmanagedFunctionByAddress<CEntityIdentity_SetEntityName_Delegate>(Core.GameData.GetSignature("CEntityInstance::SetEntityName"));
-        CBaseEntity_SetGravityScale_Func = Core.Memory.GetUnmanagedFunctionByAddress<CBaseEntity_SetGravityScale_Delegate>(Core.GameData.GetSignature("CBaseEntity::SetGravityScale"));
-        ProcessMovement_Func = Core.Memory.GetUnmanagedFunctionByAddress<ProcessMovement_Delegate>(Core.GameData.GetSignature("ProcessMovement"));
-        ProcessMovement_HookId = ProcessMovement_Func.AddHook(ProcessMovementHook);
+        var setEntityNamePtr = Core.GameData.GetSignature("CEntityInstance::SetEntityName");
+        if (setEntityNamePtr != 0)
+        {
+            CEntityIdentity_SetEntityName_Func = Core.Memory.GetUnmanagedFunctionByAddress<CEntityIdentity_SetEntityName_Delegate>(setEntityNamePtr);
+        }
+        else
+        {
+            Core.Logger.LogError("Failed to resolve signature CEntityInstance::SetEntityName");
+        }
+
+        var setGravityScalePtr = Core.GameData.GetSignature("CBaseEntity::SetGravityScale");
+        if (setGravityScalePtr != 0)
+        {
+            CBaseEntity_SetGravityScale_Func = Core.Memory.GetUnmanagedFunctionByAddress<CBaseEntity_SetGravityScale_Delegate>(setGravityScalePtr);
+        }
+        else
+        {
+            Core.Logger.LogError("Failed to resolve signature CBaseEntity::SetGravityScale");
+        }
+
+        var processMovementPtr = Core.GameData.GetSignature("ProcessMovement");
+        if (processMovementPtr != 0)
+        {
+            ProcessMovement_Func = Core.Memory.GetUnmanagedFunctionByAddress<ProcessMovement_Delegate>(processMovementPtr);
+            ProcessMovement_HookId = ProcessMovement_Func.AddHook(ProcessMovementHook);
+        }
+        else
+        {
+            Core.Logger.LogError("Failed to resolve signature ProcessMovement");
+        }
 
         Core.Event.OnEntityIdentityAcceptInputHook += OnEntityIdentityAcceptInputHook;
         Core.Event.OnClientPutInServer += OnClientPutInServer;
