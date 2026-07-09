@@ -7,13 +7,14 @@ using SwiftlyS2.Shared.Events;
 using SwiftlyS2.Shared.GameEventDefinitions;
 using SwiftlyS2.Shared.Memory;
 using SwiftlyS2.Shared.Misc;
+using SwiftlyS2.Shared.GameHooks;
 using SwiftlyS2.Shared.Natives;
 using SwiftlyS2.Shared.Plugins;
 using SwiftlyS2.Shared.SchemaDefinitions;
 
 namespace CustomIO;
 
-[PluginMetadata(Id = "CS2 CustomIO For SW2", Version = "1.5", Name = "CustomIO SW2", Author = "DarkerZ & LynchMus", Description = "Fixes missing keyvalues from CSS/CS:GO", Website = "https://github.com/himenekocn/CS2-CustomIO-For-SW2")]
+[PluginMetadata(Id = "CS2 CustomIO For SW2", Version = "1.6", Name = "CustomIO SW2", Author = "DarkerZ & LynchMus", Description = "Fixes missing keyvalues from CSS/CS:GO", Website = "https://github.com/himenekocn/CS2-CustomIO-For-SW2")]
 public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
 {
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -44,7 +45,7 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
         ProcessMovement_Func = Core.Memory.GetUnmanagedFunctionByAddress<ProcessMovement_Delegate>(Core.GameData.GetSignature("ProcessMovement"));
         ProcessMovement_HookId = ProcessMovement_Func.AddHook(ProcessMovementHook);
 
-        Core.Event.OnEntityIdentityAcceptInputHook += OnEntityIdentityAcceptInputHook;
+        Core.GameHooks.Entities.AcceptInput.Pre += OnAcceptInputPre;
         Core.Event.OnClientPutInServer += OnClientPutInServer;
         Core.Event.OnClientDisconnected += OnClientDisconnected;
 
@@ -58,7 +59,7 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
         if (ProcessMovement_HookId != null)
             ProcessMovement_Func?.RemoveHook(ProcessMovement_HookId.Value);
 
-        Core.Event.OnEntityIdentityAcceptInputHook -= OnEntityIdentityAcceptInputHook;
+        Core.GameHooks.Entities.AcceptInput.Pre -= OnAcceptInputPre;
         Core.Event.OnClientPutInServer -= OnClientPutInServer;
         Core.Event.OnClientDisconnected -= OnClientDisconnected;
 
@@ -147,30 +148,30 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
         return HookResult.Continue;
     }
 
-    public void OnEntityIdentityAcceptInputHook(IOnEntityIdentityAcceptInputHookEvent @event)
+    public void OnAcceptInputPre(ref AcceptInputEntityPreContext ctx)
     {
-        var input = @event.InputName;
+        var input = ctx.Params.InputName;
         if (string.IsNullOrEmpty(input))
         {
             return;
         }
 
-        var ceid = @event.Identity;
+        var ceid = ctx.Params.Identity;
 
         if (ceid == null || !ceid.IsValid)
         {
             return;
         }
 
-        var cei = ceid.EntityInstance;
+        var cei = ctx.Params.EntityInstance;
 
         if (cei == null || !cei.IsValid)
         {
             return;
         }
 
-        var activator = @event.Activator;
-        var value = TryToString(@event.VariantValue);
+        var activator = ctx.Params.Activator;
+        var value = TryToString(ctx.Params.VariantValue);
 
         try
         {
@@ -533,7 +534,7 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
         }
         catch (Exception ex)
         {
-            Core.Logger.LogError("OnEntityIdentityAcceptInputHook: {0} - {1}", ex.Message, ex.Source);
+            Core.Logger.LogError("OnAcceptInputPre: {0} - {1}", ex.Message, ex.Source);
         }
     }
 
