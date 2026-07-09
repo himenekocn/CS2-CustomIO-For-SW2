@@ -25,11 +25,6 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
     private delegate void CBaseEntity_SetGravityScale_Delegate(nint a1, float a2);
     private static IUnmanagedFunction<CBaseEntity_SetGravityScale_Delegate>? CBaseEntity_SetGravityScale_Func;
 
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    private delegate void ProcessMovement_Delegate(nint a1, nint a2);
-    private static IUnmanagedFunction<ProcessMovement_Delegate>? ProcessMovement_Func;
-    private Guid? ProcessMovement_HookId;
-
     private Guid? SpawnEvent_HookId;
 
     private IConVar<bool>? sw_iodebug;
@@ -42,8 +37,8 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
 
         CEntityIdentity_SetEntityName_Func = Core.Memory.GetUnmanagedFunctionByAddress<CEntityIdentity_SetEntityName_Delegate>(Core.GameData.GetSignature("CEntityInstance::SetEntityName"));
         CBaseEntity_SetGravityScale_Func = Core.Memory.GetUnmanagedFunctionByAddress<CBaseEntity_SetGravityScale_Delegate>(Core.GameData.GetSignature("CBaseEntity::SetGravityScale"));
-        ProcessMovement_Func = Core.Memory.GetUnmanagedFunctionByAddress<ProcessMovement_Delegate>(Core.GameData.GetSignature("ProcessMovement"));
-        ProcessMovement_HookId = ProcessMovement_Func.AddHook(ProcessMovementHook);
+        Core.GameHooks.Movement.ProcessMovement.Pre += OnProcessMovementPre;
+        Core.GameHooks.Movement.ProcessMovement.Post += OnProcessMovementPost;
 
         Core.GameHooks.Entities.AcceptInput.Pre += OnAcceptInputPre;
         Core.Event.OnClientPutInServer += OnClientPutInServer;
@@ -56,9 +51,8 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
 
     public override void Unload()
     {
-        if (ProcessMovement_HookId != null)
-            ProcessMovement_Func?.RemoveHook(ProcessMovement_HookId.Value);
-
+        Core.GameHooks.Movement.ProcessMovement.Pre -= OnProcessMovementPre;
+        Core.GameHooks.Movement.ProcessMovement.Post -= OnProcessMovementPost;
         Core.GameHooks.Entities.AcceptInput.Pre -= OnAcceptInputPre;
         Core.Event.OnClientPutInServer -= OnClientPutInServer;
         Core.Event.OnClientDisconnected -= OnClientDisconnected;
@@ -69,48 +63,38 @@ public partial class CustomIO(ISwiftlyCore core) : BasePlugin(core)
         pflSpeedMod.Clear();
     }
 
-    private ProcessMovement_Delegate ProcessMovementHook(Func<ProcessMovement_Delegate> func)
+    private float _storedFrameTime;
+
+    private void OnProcessMovementPre(ref ProcessMovementMovementPreContext ctx)
     {
-        return (a1, a2) =>
-        {
-            var ms = Helper.AsSchema<CCSPlayer_MovementServices>(a1);
-            if (!ms.IsValid)
-            {
-                func()(a1, a2);
-                return;
-            }
+        var player = ctx.Params.Player;
+        if (player == null || !player.IsValid)
+            return;
 
-            var pawn = ms.Pawn;
-            if (pawn == null || !pawn.IsValid)
-            {
-                func()(a1, a2);
-                return;
-            }
+        if (!pflSpeedMod.TryGetValue(player.UserID, out var speedMod))
+            return;
 
-            var player = Core.PlayerManager.GetPlayerFromPawn(pawn);
-            if (player == null || !player.IsValid)
-            {
-                func()(a1, a2);
-                return;
-            }
+        if (speedMod == 1.0f)
+            return;
 
-            if (!pflSpeedMod.TryGetValue(player.UserID, out var speedMod))
-                pflSpeedMod[player.UserID] = speedMod = 1.0f;
-
-            if (speedMod == 1.0f)
-            {
-                func()(a1, a2);
-                return;
-            }
-
-            float flStoreFrametime = Core.Engine.GlobalVars.FrameTime;
-            Core.Engine.GlobalVars.FrameTime *= speedMod;
-            func()(a1, a2);
-            Core.Engine.GlobalVars.FrameTime = flStoreFrametime;
-        };
+        _storedFrameTime = Core.Engine.GlobalVars.FrameTime;
+        Core.Engine.GlobalVars.FrameTime *= speedMod;
     }
 
+    private void OnProcessMovementPost(ref ProcessMovementMovementPostContext ctx)
+    {
+        var player = ctx.Params.Player;
+        if (player == null || !player.IsValid)
+            return;
 
+        if (!pflSpeedMod.TryGetValue(player.UserID, out var speedMod))
+            return;
+
+        if (speedMod == 1.0f)
+            return;
+
+        Core.Engine.GlobalVars.FrameTime = _storedFrameTime;
+    }
 
     private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
     {

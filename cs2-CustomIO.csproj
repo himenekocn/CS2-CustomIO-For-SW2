@@ -18,7 +18,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" />
-    <PackageReference Include="SwiftlyS2.CS2" Version="1.4.2-beta.20" ExcludeAssets="runtime" />
+    <PackageReference Include="SwiftlyS2.CS2" Version="1.4.2-beta.25" ExcludeAssets="runtime" />
   </ItemGroup>
 
   <ItemGroup>
